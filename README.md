@@ -18,13 +18,13 @@ A simple Order Management System built with React, Node.js, Express, and MongoDB
 
 ## Setting Up Backend
 # Step 1. cd backend
-#Step 2. cd orderbe
-#step 3. npm i
-#Step 4. npm run dev 
+# Step 2. cd orderbe
+# Step 3. npm i
+# Step 4. npm run dev 
 
-#Setting Up Frontend
-#Step 1. cd frontend
-#Step 2. cd orderfe
-#Step 3. npm i
-#Step 4. npm run dev
+## Setting Up Frontend
+# Step 1. cd frontend
+# Step 2. cd orderfe
+# Step 3. npm i
+# Step 4. npm run dev
 
