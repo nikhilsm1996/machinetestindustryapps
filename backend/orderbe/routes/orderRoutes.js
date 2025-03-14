@@ -63,8 +63,21 @@ router.get("/", isAuthenticated, isAdmin, async (req, res) => {
 
 router.get("/my-orders", isAuthenticated, async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id });
-    res.json(orders);
+    const page = Number(req.query.page) || 1; // Get page number from query, default is 1
+    const limit = 5; // Set the number of orders per page
+    const skip = (page - 1) * limit; // Calculate how many orders to skip
+
+    const totalOrders = await Order.countDocuments({ user: req.user._id }); // Count total orders
+    const orders = await Order.find({ user: req.user._id })
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 }); // Sort by newest first
+
+    res.json({
+      orders,
+      currentPage: page,
+      totalPages: Math.ceil(totalOrders / limit),
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
