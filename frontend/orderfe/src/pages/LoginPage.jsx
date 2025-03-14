@@ -14,7 +14,8 @@ const Login = () => {
       e.preventDefault();
       setError("");
       try {
-        const res = await fetch("/api/users/login", {
+        console.log("after try in fe")
+        const res = await fetch("http://localhost:5000/users/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData),
@@ -22,7 +23,8 @@ const Login = () => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || "Login failed");
         localStorage.setItem("token", data.token);
-        navigate("/");
+        console.log("before navigate")
+        navigate("/dashboard");
       } catch (err) {
         setError(err.message);
       }

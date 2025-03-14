@@ -1,9 +1,13 @@
-/* Make sure the app takes full height */
-html, body, #root, .app-container {
-  height: 100%;
-  margin: 0;
-  padding: 0;
+
+/* If you're using a div as your main container in App.js */
+.app-container {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
 }
+
+/* If you're using CSS modules or styled-components, adjust accordingly */
 
 /* Ensures content expands fully */
 .fullscreen-container {
@@ -25,4 +29,22 @@ html, body, #root, .app-container {
   position: fixed; /* Changed from absolute to fixed */
   width: 100%;
   bottom: 0;
+}
+/* App-wide layout styles */
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* Full viewport height */
+}
+
+.content-container {
+  flex: 1; /* This makes the content expand to push footer down */
+  width: 100%;
+}
+
+/* You may need to add this to your index.css or index.html if not already there */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
