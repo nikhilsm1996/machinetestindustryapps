@@ -4,19 +4,13 @@ import { isAuthenticated, isAdmin } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-/**
- * @route   POST /api/orders
- * @desc    Create a new order
- * @access  Private (Only authenticated users)
- */
 router.post("/", isAuthenticated, async (req, res) => {
   try {
     const { items, totalPrice } = req.body;
 
-    // Debug what's in req.user
+  
     console.log("User data in request:", req.user);
 
-    // Validate input
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "Order must have at least one item" });
     }
@@ -25,17 +19,17 @@ router.post("/", isAuthenticated, async (req, res) => {
       return res.status(401).json({ message: "User not authenticated properly" });
     }
 
-    // Create new order
+   
     const newOrder = {
-      user: req.user._id, // This should be the MongoDB ObjectId
+      user: req.user._id, 
       items: items,
       totalPrice: totalPrice,
-      status: "Pending" // Match the case in your schema enum
+      status: "Pending" 
     };
 
     console.log("Creating order with data:", newOrder);
 
-    // Create and save the order
+  
     const order = new Order(newOrder);
     const savedOrder = await order.save();
     
@@ -44,7 +38,7 @@ router.post("/", isAuthenticated, async (req, res) => {
   } catch (error) {
     console.error("Order creation error:", error.message);
     
-    // Check if it's a validation error
+  
     if (error.name === "ValidationError") {
       return res.status(400).json({ 
         message: "Validation error", 
@@ -57,12 +51,6 @@ router.post("/", isAuthenticated, async (req, res) => {
 });
 
 
-
-/**
- * @route   GET /api/orders
- * @desc    Get all orders (Admin only)
- * @access  Private (Admin)
- */
 router.get("/", isAuthenticated, isAdmin, async (req, res) => {
   try {
     const orders = await Order.find().populate("user", "name email"); // Get user details
@@ -72,11 +60,7 @@ router.get("/", isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-/**
- * @route   GET /api/orders/my-orders
- * @desc    Get logged-in user's orders
- * @access  Private (User)
- */
+
 router.get("/my-orders", isAuthenticated, async (req, res) => {
   try {
     const orders = await Order.find({ user: req.user._id });
@@ -86,12 +70,7 @@ router.get("/my-orders", isAuthenticated, async (req, res) => {
   }
 });
 
-/**
- * @route   GET /api/orders/:id
- * @desc    Get a single order (Admin or owner only)
- * @access  Private
- */
-// router.get("/:id", isAuthenticated, async (req, res) => {
+
 //   try {
 //     const order = await Order.findById(req.params.id).populate("user", "name email");
 //     console.log("order",order)
@@ -109,11 +88,7 @@ router.get("/my-orders", isAuthenticated, async (req, res) => {
 //   }
 // });
 
-/**
- * @route   PUT /api/orders/:id
- * @desc    Update an order (Admin or owner only)
- * @access  Private
- */
+
 router.put("/:id", isAuthenticated, async (req, res) => {
   try {
     console.log("Order update attempt for ID:", req.params.id);
@@ -133,7 +108,7 @@ router.put("/:id", isAuthenticated, async (req, res) => {
       status: order.status
     });
     
-    // More detailed comparison logging
+
     console.log("Order user ID (raw):", order.user);
     console.log("Order user ID (string):", order.user ? order.user.toString() : null);
     console.log("Auth user ID (raw):", req.user._id);
@@ -144,7 +119,7 @@ router.put("/:id", isAuthenticated, async (req, res) => {
     
     console.log("IDs match?", orderUserStr === authUserStr);
     
-    // Try more flexible comparison
+  
     if (!order.user || 
         (orderUserStr !== authUserStr && 
          orderUserStr !== req.user.id && 
@@ -154,18 +129,16 @@ router.put("/:id", isAuthenticated, async (req, res) => {
     }
     
     console.log("Authorization passed!");
-    
-    // Rest of your code for updating the order...
+   
     const { items, totalPrice, status } = req.body;
 
-    // Update fields if provided
     if (items && Array.isArray(items) && items.length > 0) order.items = items;
     if (totalPrice) order.totalPrice = totalPrice;
 
-    // Allow status update only for admins
+  
     if (status && req.user.isAdmin) order.status = status;
 
-    // Save the updated order
+    
     const updatedOrder = await order.save();
     
     console.log("Order successfully updated");
@@ -176,15 +149,6 @@ router.put("/:id", isAuthenticated, async (req, res) => {
   }
 });
 
-
-
-
-
-/**
- * @route   DELETE /api/orders/:id
- * @desc    Delete an order (Admin or owner only)
- * @access  Private
- */
 
 
 router.delete("/:id", isAuthenticated, async (req, res) => {
@@ -205,15 +169,15 @@ router.delete("/:id", isAuthenticated, async (req, res) => {
       status: order.status
     });
     
-    // Check authorization: user owns the order OR is an admin
+   
     if (order.user) {
-      // If order has an assigned user, must be same as authenticated user or admin
+      
       if (order.user.toString() !== req.user._id.toString() && !req.user.isAdmin) {
         console.log("Authorization failed: User doesn't own this order and is not admin");
         return res.status(403).json({ message: "Not authorized to delete this order" });
       }
     } else {
-      // For orders without users, only admins can delete
+      
       if (!req.user.isAdmin) {
         console.log("Authorization failed: Only admins can delete orders without assigned users");
         return res.status(403).json({ message: "Only admins can delete orders without assigned users" });
@@ -222,15 +186,14 @@ router.delete("/:id", isAuthenticated, async (req, res) => {
     
     console.log("Authorization passed!");
     
-    // Add business logic if needed
-    // For example, maybe don't allow deletion of shipped orders
+    
     if (order.status === "Shipped" && !req.user.isAdmin) {
       return res.status(400).json({ 
         message: "Cannot delete an order that has been shipped. Please contact customer support." 
       });
     }
     
-    // Perform the deletion
+    
     await Order.findByIdAndDelete(req.params.id);
     
     console.log("Order successfully deleted");
