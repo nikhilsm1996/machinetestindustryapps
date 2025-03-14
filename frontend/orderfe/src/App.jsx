@@ -5,6 +5,8 @@ import Login from "./pages/LoginPage";
 import Signup from "./pages/SignupPage";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import "bootstrap/dist/css/bootstrap.min.css";
+
 
 const App = () => {
   return (
