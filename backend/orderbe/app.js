@@ -6,6 +6,7 @@ import logger from "morgan";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
+import cors from "cors"
 
 import orderRoutes from "./routes/orderRoutes.js";
 import usersRoutes from "./routes/userRoutes.js";
@@ -23,6 +24,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
+app.use(cors());
+
 
 
 

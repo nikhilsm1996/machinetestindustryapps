@@ -41,17 +41,19 @@ console.log("after hash password")
 
 // User Login
 router.post("/login", async (req, res) => {
+  console.log("entering route")
   try {
-    const { email, password } = req.body;
 
+    const { email, password } = req.body;
+console.log("after try")
     
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "Invalid email or password" });
 
-    
+    console.log("USERR",user)
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid email or password" });
-
+console.log("before jwt")
     // Generate JWT token
     const token = jwt.sign({ userId: user._id, isAdmin: user.isAdmin }, process.env.JWT_SECRET, {
       expiresIn: "7d",
