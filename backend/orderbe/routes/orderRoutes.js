@@ -51,7 +51,7 @@ router.post("/", isAuthenticated, async (req, res) => {
 });
 
 
-router.get("/", isAuthenticated, isAdmin, async (req, res) => {
+router.get("/all-orders", isAuthenticated, isAdmin, async (req, res) => {
   try {
     const orders = await Order.find().populate("user", "name email"); // Get user details
     res.json(orders);

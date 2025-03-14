@@ -78,6 +78,36 @@ router.get("/", isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
+//GET SINGLE USER
+router.get("/:userId", isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select("-password"); // Exclude password field
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.get("/me", isAuthenticated,isAdmin, async (req, res) => {
+  console.log("before try")
+  try {
+    console.log("RUI",req.user._id)
+    console.log("RUI 2",req.user.id)
+    console.log("RUI 3",req.user)
+    const user = await User.findById(req.user.userId).select("-password"); // Exclude password
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+});
 
 
 router.put("/:id", isAuthenticated, async (req, res) => {

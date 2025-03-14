@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Tab, Tabs, Table, Button, Form } from "react-bootstrap";
+import { Tab, Tabs, Table, Button, Form, Modal } from "react-bootstrap";
+
+
 
 const Dashboard = () => {
   const [orders, setOrders] = useState([]);
@@ -8,7 +10,7 @@ const Dashboard = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [activeTab, setActiveTab] = useState("viewOrders");
-
+  const [isAdmin, setIsAdmin] = useState(null);
   // Order Management States
   const [newOrder, setNewOrder] = useState({
     items: [],
@@ -21,24 +23,73 @@ const Dashboard = () => {
   const [itemQuantity, setItemQuantity] = useState(1);
   const [itemPrice, setItemPrice] = useState("");
   
+  // Edit modal states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editedItems, setEditedItems] = useState([]);
+ 
+  
   useEffect(() => {
-    fetchOrders();
-  }, [page]);
-
+    const fetchUserRole = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        console.log("token is",token)
+        if (!token) {
+          setIsAdmin(false);
+          return;
+        }
+        console.log("before api req")
+        const res = await fetch("http://localhost:5000/users/me", {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        const data = await res.json();
+        setIsAdmin(data.isAdmin);
+      } catch (err) {
+        console.error("Error fetching user role:", err);
+        setIsAdmin(false);
+      }
+    };
+    
+    fetchUserRole();
+  }, []);
+  
+  // Fetch orders only when `isAdmin` is determined
+  useEffect(() => {
+    if (isAdmin !== null) {
+      fetchOrders();
+    }
+  }, [isAdmin, page]);
+  
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/orders/my-orders?page=${page}`, {
+        console.log("ADMIN",isAdmin)
+      const endpoint = isAdmin
+        ? `http://localhost:5000/orders/all-orders` 
+        : `http://localhost:5000/orders/my-orders?page=${page}`; 
+  
+      const res = await fetch(endpoint, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       });
+  
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setOrders(data.orders);
-      setTotalPages(data.totalPages);
+      
+      // Handle different response formats
+      if (isAdmin) {
+        setOrders(data); // Admin endpoint returns array directly
+        setTotalPages(1); // No pagination for admin view
+      } else {
+        setOrders(data.orders);
+        setTotalPages(data.totalPages);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -59,6 +110,66 @@ const Dashboard = () => {
     }
   };
 
+  // Open edit modal
+  const handleEdit = (order) => {
+    setSelectedOrder(order);
+    setEditedItems(JSON.parse(JSON.stringify(order.items))); // Deep copy items
+    setShowEditModal(true);
+  };
+  
+  // Close edit modal
+  const handleCloseEditModal = () => {
+    setShowEditModal(false);
+    setSelectedOrder(null);
+    setEditedItems([]);
+  };
+  
+  // Update item fields in edit modal
+  const handleEditItemChange = (index, field, value) => {
+    const updatedItems = [...editedItems];
+    updatedItems[index][field] = field === 'quantity' ? parseInt(value) : 
+                                field === 'price' ? parseFloat(value) : value;
+    setEditedItems(updatedItems);
+  };
+  
+  // Submit order updates
+  const handleUpdateOrder = async () => {
+    if (!selectedOrder) return;
+    
+    // Calculate new total price based on updated items
+    const newTotalPrice = editedItems.reduce((total, item) => 
+      total + (parseFloat(item.price) * item.quantity), 0);
+    
+    try {
+      const res = await fetch(`http://localhost:5000/orders/${selectedOrder._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          items: editedItems,
+          totalPrice: newTotalPrice,
+          status: selectedOrder.status
+        }),
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update order");
+      
+      // Update orders list
+      setOrders(orders.map(order => 
+        order._id === selectedOrder._id ? 
+        {...order, items: editedItems, totalPrice: newTotalPrice} : 
+        order
+      ));
+      
+      handleCloseEditModal();
+    } catch (err) {
+      alert("Error updating order: " + err.message);
+    }
+  };
+
   // Add item to the order
   const addItemToOrder = () => {
     if (!itemName || !itemPrice) {
@@ -72,9 +183,15 @@ const Dashboard = () => {
       price: parseFloat(itemPrice)
     };
     
+    // Calculate new total with this item added
+    const newItems = [...newOrder.items, newItem];
+    const calculatedTotal = newItems.reduce((total, item) => 
+      total + (parseFloat(item.price) * item.quantity), 0).toFixed(2);
+    
     setNewOrder({
       ...newOrder,
-      items: [...newOrder.items, newItem]
+      items: newItems,
+      totalPrice: calculatedTotal // Update total price automatically
     });
     
     // Reset item fields
@@ -93,57 +210,99 @@ const Dashboard = () => {
     });
   };
 
+ 
   const handleAddOrder = async (e) => {
     e.preventDefault();
-
-    if (newOrder.items.length === 0) {
+    
+    // Get token from localStorage
+    const token = localStorage.getItem("token");
+    
+    if (!token) {
+      alert("Authentication required. Please log in.");
+      return;
+    }
+    
+    // Validate that we have items
+    if (!newOrder.items || newOrder.items.length === 0) {
       alert("Order must have at least one item.");
       return;
     }
-  
-    // Calculate total price if not explicitly set
-    const calculatedTotalPrice = calculateTotalPrice();
-    const finalTotalPrice = newOrder.totalPrice || calculatedTotalPrice;
-  
-    // Validate all items have required fields
+    
+    // Validate that each item has required fields
     const validItems = newOrder.items.every(item => 
-      item.name && item.quantity > 0 && item.price > 0
-    );
-  
+        item.name && 
+        item.quantity && parseInt(item.quantity) >= 1 && 
+        item.price && parseFloat(item.price) > 0
+      );
     if (!validItems) {
-      alert("All items must have a name, quantity, and price.");
+      alert("Each item must have a name, quantity (min 1), and valid price.");
       return;
     }
-  
+    
+    // Validate total price
+    if (!newOrder.totalPrice || isNaN(parseFloat(newOrder.totalPrice))) {
+      alert("Total price is required and must be a valid number.");
+      return;
+    }
+    
     try {
-      const res = await fetch("http://localhost:5000/orders", {
+      // Format the order data as expected by the server
+      const orderData = {
+        items: newOrder.items.map(item => ({
+          name: item.name,
+          quantity: Number(item.quantity),
+          price: Number(item.price)
+        })),
+        totalPrice: Number(newOrder.totalPrice)
+        // Note: status is automatically set to "Pending" by the server
+      };
+      
+      console.log("Sending order data:", orderData);
+      
+      const response = await fetch("http://localhost:5000/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          items: newOrder.items,
-          totalPrice: parseFloat(finalTotalPrice),
-          status: newOrder.status
-        }),
+        body: JSON.stringify(orderData)
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to create order");
-  
-      // Add the new order to the list and reset form
-      setOrders([...orders, data]);
+      
+      // Handle the response
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to create order");
+      }
+      
+      const data = await response.json();
+      console.log("Order created successfully:", data);
+      
+      // Update the UI
+      setOrders(prevOrders => [...prevOrders, data]);
+      
+      // Reset the form
       setNewOrder({
         items: [],
         totalPrice: "",
         status: "Pending"
       });
       
-      // Switch to view orders tab
-      setActiveTab("viewOrders");
-      fetchOrders(); // Refresh the orders list
-    } catch (err) {
-      alert("Error adding order: " + err.message);
+      // Provide user feedback
+      alert("Order created successfully!");
+      
+      // Optionally switch to view orders tab
+      if (typeof setActiveTab === 'function') {
+        setActiveTab("viewOrders");
+      }
+      
+      // Optionally refresh the orders list
+      if (typeof fetchOrders === 'function') {
+        fetchOrders();
+      }
+      
+    } catch (error) {
+      console.error("Error creating order:", error);
+      alert(error.message || "An error occurred while creating the order");
     }
   };
 
@@ -182,6 +341,7 @@ const Dashboard = () => {
                       <td>${order.totalPrice.toFixed(2)}</td>
                       <td>{order.status}</td>
                       <td>
+                        <Button variant="primary" size="sm" className="me-2" onClick={() => handleEdit(order)}>Edit</Button>
                         <Button variant="danger" size="sm" onClick={() => handleDelete(order._id)}>Delete</Button>
                       </td>
                     </tr>
@@ -294,6 +454,78 @@ const Dashboard = () => {
           </Form>
         </Tab>
       </Tabs>
+      
+      {/* Edit Order Modal */}
+      <Modal show={showEditModal} onHide={handleCloseEditModal} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Edit Order</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedOrder && (
+            <div>
+              <h5>Order ID: {selectedOrder._id}</h5>
+              <Table striped bordered hover>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editedItems.map((item, index) => (
+                    <tr key={index}>
+                      <td>
+                        <Form.Control
+                          type="text"
+                          value={item.name}
+                          onChange={(e) => handleEditItemChange(index, 'name', e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <Form.Control
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => handleEditItemChange(index, 'quantity', e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <Form.Control
+                          type="number"
+                          step="0.01"
+                          value={item.price}
+                          onChange={(e) => handleEditItemChange(index, 'price', e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        ${(item.quantity * parseFloat(item.price)).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th colSpan="3" className="text-end">Total Price:</th>
+                    <th>
+                      ${editedItems.reduce((total, item) => total + (item.quantity * parseFloat(item.price)), 0).toFixed(2)}
+                    </th>
+                  </tr>
+                </tfoot>
+              </Table>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCloseEditModal}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleUpdateOrder}>
+            Save Changes
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };
